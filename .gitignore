@@ -1,6 +1,7 @@
 # Prerequisites
 *.d
-
+customer.txt
+bank
 # Compiled Object files
 *.slo
 *.lo
