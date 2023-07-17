@@ -11,21 +11,22 @@
 #include <fstream>
 #include <iostream>
 
+using namespace std;
 
 struct Customer {
-    std::string name;
-    std::string accountNumber;
-    std::string hashedPassword;
+    string name;
+    string accountNumber;
+    string hashedPassword;
     double balance;
     // Other member variables and methods as needed
 };
 
-void encryptData(const std::string& data, std::string& encryptedData);
-void hashPassword(const std::string& password, std::string& hashedPassword);
+void encryptData(const string& data, string& encryptedData);
+void hashPassword(const string& password, string& hashedPassword);
 void saveCustomerToFile(const Customer& customer);
 void loadCustomersFromFile();
-void signup();
-void login();
-void getAllCustomers(std::vector<Customer>& result);
+bool signup(string username, string password);
+bool login(string username, string password);
+void getAllCustomers(vector<Customer>& result);
 
 #endif

@@ -5,7 +5,7 @@ LDFLAGS = -lcrypto
 SERVER_TARGET = server
 CLIENT_TARGET = client
 
-SERVER_SRC = main.cpp Server.cpp Storage.cpp
+SERVER_SRC = Server.cpp Storage.cpp
 CLIENT_SRC = Client.cpp
 
 SERVER_OBJ = $(SERVER_SRC:.cpp=.o)

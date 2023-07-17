@@ -1,6 +1,5 @@
 # Prerequisites
 *.d
-customer.txt
 server
 client
 # Compiled Object files

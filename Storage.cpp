@@ -2,6 +2,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <random>
+#include <mutex>
 
 using namespace std;
 
@@ -10,6 +11,7 @@ const char kInitializationVector[] = "myinitializer";
 const double INITIAL_BALANCE = 1000.0;
 
 unordered_map<string, Customer> customers;
+mutex dataMutex;
 
 void encryptData(const string& data, string& encryptedData) {
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
@@ -124,13 +126,12 @@ string generateRandomAccountNumber() {
     return to_string(dist(gen));
 }
 
-void login(string username, string password) {
-
+bool login(string username, string password) {
+    lock_guard<mutex> lock(dataMutex);
     // Check if the username already exists
-    if (customers.find(username) == customers.end()) {
-        cout << "Invalid username or password.\n";
-        return;
-    }
+    // if (customers.find(username) == customers.end()) {
+    //     return false;
+    // }
 
     // Hash the entered password
     string hashedPassword;
@@ -139,19 +140,19 @@ void login(string username, string password) {
     Customer it = customers[username];
     // Compare the hashed password with the stored hashed password
     if (hashedPassword == it.hashedPassword) {
-        cout << "Login successful!\n";
         // Proceed with account operations
+        return true;
     } else {
-        cout << "Invalid username or password.\n";
+        return false;
     }
 }
 
-void signup(string username, string password) {
+bool signup(string username, string password) {
 
+    lock_guard<mutex> lock(dataMutex);
     // Check if the username already exists
     if (customers.find(username) != customers.end()) {
-        cout << "Username already exists. Please choose a different username.\n";
-        return;
+        return false;
     }
 
     // Hash the password
@@ -167,6 +168,6 @@ void signup(string username, string password) {
 
     saveCustomerToFile(newUser);
     customers[username] = newUser;  
-    
-    cout << "Signup successful!\n";
+
+    return true;
 }

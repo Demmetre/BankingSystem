@@ -6,28 +6,37 @@
 
 using namespace std;
 
-const int PORT = 8080;
-const string SERVER_IP = "127.0.0.1"; // Replace with the actual server IP
+#define SERVER_IP "127.0.0.1"
+#define PORT 8080
 
 int main() {
-    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    int clientSocket;
+    struct sockaddr_in serverAddr;
+
+    // Create socket
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == -1) {
-        cerr << "Failed to create socket." << endl;
-        return -1;
+        cerr << "Failed to create socket!" << endl;
+        return 1;
     }
 
-    sockaddr_in serverAddress{};
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, SERVER_IP.c_str(), &(serverAddress.sin_addr)) <= 0) {
-        cerr << "Invalid server address." << endl;
-        return -1;
+    // Prepare the sockaddr_in structure
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(PORT);
+
+    // Convert IP address from string to binary form
+    if (inet_pton(AF_INET, SERVER_IP, &(serverAddr.sin_addr)) <= 0) {
+        cerr << "Invalid address or address not supported!" << endl;
+        return 1;
     }
 
-    if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddress), sizeof(serverAddress)) < 0) {
-        cerr << "Connection failed." << endl;
-        return -1;
+    // Connect to the server
+    if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        cerr << "Failed to connect to the server!" << endl;
+        return 1;
     }
+
+    cout << "Connected to the server." << endl;
 
     // At this point, the client is connected to the server
     int choice;
@@ -54,18 +63,20 @@ int main() {
                 cout << "Invalid choice. Please try again.\n";
                 break;
         }
-        if(choice == 3) break;
-        if(choice >= 4 || choice <= 0) continue;
+        
+        if(choice >= 4 || choice <= 0) break;
         
         string username, password;
         // Get username and password from user input
-        cout << "Enter your username :" ;
-        cin >> username;
+        if(choice != 3){
+            cout << "Enter your username :" ;
+            cin >> username;
 
-        cout << "Enter your password :" ;
-        cin >> password;
+            cout << "Enter your password :" ;
+            cin >> password;
+            request += username + ":" + password;
+        }
 
-        request += username + ":" + password;
 
         if (send(clientSocket, request.c_str(), request.length(), 0) < 0) {
             cerr << "Failed to send request." << endl;
@@ -80,7 +91,7 @@ int main() {
             return -1;
         }
         // Process and display the response
-        cout << "Response received: " << buffer << endl;
+        cout << ">> " <<buffer << endl;
     }
     // Close the connection
     close(clientSocket);
