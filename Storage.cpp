@@ -68,8 +68,14 @@ void saveCustomerToFile(const Customer& customer) {
 void loadCustomersFromFile() {
     ifstream file("customer.txt");
     if (!file) {
-        cerr << "Error opening file for reading.\n";
-        return;
+         // If the file does not exist, create it
+        ofstream createFile("customer.txt");
+        if (!createFile) {
+            cerr << "Error creating file.\n";
+            return;
+        }
+        createFile.close();
+        file.open("customer.txt");
     }
 
     string line;
@@ -90,6 +96,7 @@ void loadCustomersFromFile() {
         int decryptedLength = 0;
         EVP_DecryptUpdate(ctx, (unsigned char*)&decryptedData[0], &decryptedLength, (const unsigned char*)line.c_str(), line.size());
 
+        // decryptedData.resize(decryptedLength);
         int finalDecryptedLength = 0;
         EVP_DecryptFinal_ex(ctx, (unsigned char*)&decryptedData[decryptedLength], &finalDecryptedLength);
 
@@ -114,6 +121,68 @@ void loadCustomersFromFile() {
 
     file.close();
 }
+
+void updateCustomerInFile(const Customer& customer) {
+    fstream file("customer.txt", ios::in | ios::out);
+    if (!file) {
+        cerr << "Error opening file for updating.\n";
+        return;
+    }
+
+    string line;
+    string searchName = customer.name;
+    streampos position = 0;
+
+    while (getline(file, line)) {
+        string decryptedData;
+
+        const EVP_CIPHER* cipher = EVP_aes_256_cbc();
+        unsigned char key[EVP_MAX_KEY_LENGTH];
+        unsigned char iv[EVP_MAX_IV_LENGTH];
+
+        memcpy(key, kEncryptionKey, sizeof(kEncryptionKey)); 
+        memcpy(iv, kInitializationVector, sizeof(kInitializationVector));
+
+        EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+        EVP_DecryptInit_ex(ctx, cipher, nullptr, key, iv);
+
+        int maxDecryptedLength = line.size() + EVP_MAX_BLOCK_LENGTH;
+        decryptedData.resize(maxDecryptedLength);
+        int decryptedLength = 0;
+        EVP_DecryptUpdate(ctx, (unsigned char*)&decryptedData[0], &decryptedLength, (const unsigned char*)line.c_str(), line.size());
+
+        int finalDecryptedLength = 0;
+        EVP_DecryptFinal_ex(ctx, (unsigned char*)&decryptedData[decryptedLength], &finalDecryptedLength);
+
+        decryptedLength += finalDecryptedLength;
+        decryptedData.resize(decryptedLength);
+
+        EVP_CIPHER_CTX_free(ctx);
+
+        istringstream iss(decryptedData);
+        string name, accountNumber, hashedPassword;
+        double balance;
+
+        if (getline(iss, name, ',') && getline(iss, accountNumber, ',') && getline(iss, hashedPassword, ',') && iss >> balance) {
+            if (name == searchName) {
+                balance = customer.balance; // Update the balance
+                string updatedData = name + "," + accountNumber + "," + hashedPassword + "," + to_string(balance);
+                string encryptedData;
+                encryptData(updatedData, encryptedData);
+
+                // Move to the correct position in the file and overwrite the existing record
+                file.seekp(position);
+                file.write(encryptedData.c_str(), encryptedData.size());
+
+                break; // We found the record, no need to search further
+            }
+        }
+        position = file.tellg(); 
+    }
+    file.close();
+
+}
+
 void getAllCustomers(vector<Customer>& result){
     for (auto it: customers){
         result.push_back(it.second);
@@ -129,9 +198,10 @@ string generateRandomAccountNumber() {
 bool login(string username, string password) {
     lock_guard<mutex> lock(dataMutex);
     // Check if the username already exists
-    // if (customers.find(username) == customers.end()) {
-    //     return false;
-    // }
+    if (customers.find(username) == customers.end()) {
+        cout<<username<<endl;
+        return false;
+    }
 
     // Hash the entered password
     string hashedPassword;
@@ -152,6 +222,7 @@ bool signup(string username, string password) {
     lock_guard<mutex> lock(dataMutex);
     // Check if the username already exists
     if (customers.find(username) != customers.end()) {
+        cout<<username<<endl;
         return false;
     }
 
@@ -170,4 +241,40 @@ bool signup(string username, string password) {
     customers[username] = newUser;  
 
     return true;
+}
+
+
+
+int transferMoney(string senderUsername, string receiverUsername, double amount){
+    lock_guard<mutex> lock(dataMutex);
+    // Check if both sender and receiver usernames exist in the database
+    if (customers.find(senderUsername) == customers.end() || customers.find(receiverUsername) == customers.end()) {
+        // User not found
+        return 1;
+    }
+
+    // Check if the sender has enough balance to perform the transfer
+    if (customers[senderUsername].balance < amount) {
+        // Not enough money
+        return 2;
+    }
+    customers[senderUsername].balance -= amount;
+    customers[receiverUsername].balance += amount;
+
+    updateCustomerInFile(customers[senderUsername]);
+    updateCustomerInFile(customers[receiverUsername]);
+
+    // Successfully transfered
+    return 0;
+
+}
+
+double getCurrentBalance(string username){
+    lock_guard<mutex> lock(dataMutex);
+    
+    if (customers.find(username) == customers.end()) {
+        // User not found
+        return -1;
+    }
+    return customers[username].balance;
 }

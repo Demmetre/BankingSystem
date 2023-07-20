@@ -5,6 +5,8 @@
 #include <thread>
 #include <mutex>
 #include <iostream>
+#include <fstream>
+#include <fcntl.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <unordered_set>
@@ -47,6 +49,79 @@ pair<string,string> parseRequest(string req){
     return make_pair(username, password);
 }
 
+void handleSignUp(string& logedIn, string& response, string& request){
+    if(logedIn != ""){
+        response = "Currently logged in, please log out!\n";
+    }else{
+        pair<string,string> user = parseRequest(request);
+        if (signup(user.first, user.second)){
+            response = "Signup successful!\n";
+            addActiveUsername(user.first);
+            logedIn = user.first;
+        }else{
+            response = "Username already exists. Please choose a different username.\n";
+        }
+    }
+}
+
+void handleLogIn(string& logedIn, string& response, string& request){
+    if(logedIn != ""){
+        response = "Currently logged in, please log out!\n";
+    }else{
+        pair<string,string> user = parseRequest(request);
+        if(isUsernameActive(user.first)){
+            response = "This user already logged in!\n";
+        }else if (login(user.first, user.second)){
+            response = "Login successful!\n";
+            addActiveUsername(user.first);
+            logedIn = user.first;
+        }else{
+            response = "Invalid username or password.\n";
+        }
+    }
+}
+
+void handleExit(string& logedIn, string& response, string& request){
+    if(logedIn == ""){
+        response = "Alredy logged out!\n";
+    }else{
+        response = "Logout successful!\n";
+        removeActiveUsername(logedIn);
+        logedIn = "";
+    }
+}
+
+void handleMoneyTransfer(string& logedIn, string& response, string& request){
+    if(logedIn == ""){
+        response = "No current user. Please log in to transfer money\n";
+    }else{
+        pair<string,string> user = parseRequest(request);
+        int res = transferMoney(logedIn, user.first, stoi(user.second));
+        if(res == 1){
+            response = "User not found.\n";
+        }else if (res == 2){
+            response = "Not enough money\n";
+        }else{
+            response = "Transaction completed.\n";
+        }
+    }
+}
+
+void handleCurrentBalance(string& logedIn, string& response, string& request){
+    if(logedIn == ""){
+        response = "No current user. Please log in to view the balance\n";
+    }else{
+        int res = getCurrentBalance(logedIn);
+        if(res == -1){
+            response = "Something went wrong while checking balance\n";
+        }else{
+            response = "Your current balance is " + to_string(res) + " USD\n";
+        }
+    }
+}
+
+
+
 void handleClient(int clientSocket) {
     string logedIn = "";
     while(true){
@@ -58,56 +133,24 @@ void handleClient(int clientSocket) {
             cerr << "Error reading from client socket or client disconnected.\n";
             removeActiveUsername(logedIn);
             logedIn = "";
-            break; // Break out of the loop to terminate the thread
+            break;
         }
-
         string request(buffer);
         string response;
 
         if (request[0] == '1') {
-            // handle signup
-            if(logedIn != ""){
-                response = "Currently logged in, please log out!\n";
-            }else{
-                pair<string,string> user = parseRequest(request);
-                cout<<user.first<< "  " << user.second <<endl;
-                if (signup(user.first, user.second)){
-                    response = "Signup successful!\n";
-                    addActiveUsername(user.first);
-                    logedIn = user.first;
-                }else{
-                    response = "Username already exists. Please choose a different username.\n";
-                }
-            }
+            handleSignUp(logedIn, response, request);
         } else if (request[0] == '2') {
-            if(logedIn != ""){
-                response = "Currently logged in, please log out!\n";
-            }else{
-                pair<string,string> user = parseRequest(request);
-                cout<<user.first<< "  " << user.second <<endl;
-                if(isUsernameActive(user.first)){
-                    response = "This user already logged in!\n";
-                }else if (login(user.first, user.second)){
-                    response = "Login successful!\n";
-                    addActiveUsername(user.first);
-                    logedIn = user.first;
-                }else{
-                    response = "Invalid username or password.\n";
-                }
-            }
+            handleLogIn(logedIn, response, request);
         }else if (request[0] == '3') {
-            // handle exit
-            if(logedIn == ""){
-                response = "Alredy logged out!\n";
-            }else{
-                response = "Logout successful!\n";
-                removeActiveUsername(logedIn);
-                logedIn = "";
-            }
+            handleExit(logedIn, response, request);
+        }else if(request[0] == '4'){
+            handleMoneyTransfer(logedIn, response, request);
+        }else if (request[0] == '5'){
+            handleCurrentBalance(logedIn, response, request);
         } else {
             response = "Invalid request!";
         }
-
         if (write(clientSocket, response.c_str(), response.length()) < 0) {
             cerr << "Error writing to client socket.\n";
         }
@@ -117,7 +160,6 @@ void handleClient(int clientSocket) {
 
 
 int main() {
-    loadCustomersFromFile();
     int serverSocket, newSocket;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t addrLen = sizeof(struct sockaddr_in);
@@ -145,9 +187,9 @@ int main() {
         cerr << "Failed to listen!" << endl;
         return 1;
     }
-
+    
+    loadCustomersFromFile();
     cout << "Server started. Waiting for incoming connections..." << endl;
-
     vector<thread> clientThreads;
 
     // Accept incoming connections and handle clients

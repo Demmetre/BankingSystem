@@ -45,6 +45,8 @@ int main() {
         cout << "1. Signup\n";
         cout << "2. Login\n";
         cout << "3. Exit\n";
+        cout << "4. Money transfer\n";
+        cout << "5. Current balance\n";
         cout << "Enter your choice: ";
         cin >> choice;
         string request;
@@ -59,22 +61,35 @@ int main() {
                 request = "3:";
                 cout << "Exiting...\n";
                 break;
+            case 4:
+                request = "4:";
+                break;
+            case 5:
+                request = "5:";
+                break;
             default:
                 cout << "Invalid choice. Please try again.\n";
                 break;
         }
         
-        if(choice >= 4 || choice <= 0) break;
+        if(choice >= 6 || choice <= 0) break;
         
         string username, password;
         // Get username and password from user input
-        if(choice != 3){
+        if(choice < 3){
             cout << "Enter your username :" ;
             cin >> username;
 
             cout << "Enter your password :" ;
             cin >> password;
             request += username + ":" + password;
+        }
+        if(choice == 4){
+            cout << "Enter receiver's username :" ;
+            cin >> username;
+            cout << "Enter amount of money :" ;
+            int money; cin>>money;
+            request += username + ":" + to_string(money);
         }
 
 
