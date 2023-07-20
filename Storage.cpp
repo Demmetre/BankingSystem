@@ -11,7 +11,7 @@ const char kInitializationVector[] = "myinitializer";
 const double INITIAL_BALANCE = 1000.0;
 
 unordered_map<string, Customer> customers;
-mutex dataMutex;
+unordered_map<string, mutex> accountMutexes;
 
 void encryptData(const string& data, string& encryptedData) {
     const EVP_CIPHER* cipher = EVP_aes_256_cbc();
@@ -196,7 +196,7 @@ string generateRandomAccountNumber() {
 }
 
 bool login(string username, string password) {
-    lock_guard<mutex> lock(dataMutex);
+    lock_guard<mutex> lock(accountMutexes[username]);
     // Check if the username already exists
     if (customers.find(username) == customers.end()) {
         cout<<username<<endl;
@@ -219,7 +219,7 @@ bool login(string username, string password) {
 
 bool signup(string username, string password) {
 
-    lock_guard<mutex> lock(dataMutex);
+    lock_guard<mutex> lock(accountMutexes[username]);
     // Check if the username already exists
     if (customers.find(username) != customers.end()) {
         cout<<username<<endl;
@@ -246,10 +246,20 @@ bool signup(string username, string password) {
 
 
 int transferMoney(string senderUsername, string receiverUsername, double amount){
-    lock_guard<mutex> lock(dataMutex);
     // Check if both sender and receiver usernames exist in the database
     if (customers.find(senderUsername) == customers.end() || customers.find(receiverUsername) == customers.end()) {
         // User not found
+        return 1;
+    }
+    // Lock both sender and receiver account mutexes to avoid potential deadlock
+    if (senderUsername < receiverUsername) {
+        lock_guard<mutex> lockSender(accountMutexes[customers[senderUsername].accountNumber]);
+        lock_guard<mutex> lockReceiver(accountMutexes[customers[receiverUsername].accountNumber]);
+    } else if (senderUsername > receiverUsername) {
+        lock_guard<mutex> lockReceiver(accountMutexes[customers[receiverUsername].accountNumber]);
+        lock_guard<mutex> lockSender(accountMutexes[customers[senderUsername].accountNumber]);
+    } else {
+        // If both sender and receiver usernames are the same, return user not found.
         return 1;
     }
 
@@ -270,7 +280,7 @@ int transferMoney(string senderUsername, string receiverUsername, double amount)
 }
 
 double getCurrentBalance(string username){
-    lock_guard<mutex> lock(dataMutex);
+    lock_guard<mutex> lock(accountMutexes[username]);
     
     if (customers.find(username) == customers.end()) {
         // User not found
