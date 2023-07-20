@@ -10,13 +10,27 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <unordered_set>
+#include <csignal>
+#include <atomic>
+
 
 #define PORT 8080
 
 using namespace std;
 
+
 unordered_set<string> activeUsernames;
 mutex activeUsernamesMutex;
+
+
+// Global flag to indicate the server should shut down
+
+std::atomic<bool> g_shutdownRequested(false);
+
+// Signal handler function for SIGINT
+void handleSIGINT(int signal) {
+    g_shutdownRequested = true;
+}
 
 void addActiveUsername(const string& username) {
     lock_guard<mutex> lock(activeUsernamesMutex);
@@ -160,6 +174,9 @@ void handleClient(int clientSocket) {
 
 
 int main() {
+    
+    signal(SIGINT, handleSIGINT);
+
     int serverSocket, newSocket;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t addrLen = sizeof(struct sockaddr_in);
@@ -187,23 +204,46 @@ int main() {
         cerr << "Failed to listen!" << endl;
         return 1;
     }
-    
+    createUserDataDirectory();
     loadCustomersFromFile();
     cout << "Server started. Waiting for incoming connections..." << endl;
     vector<thread> clientThreads;
 
+    fd_set readSet;
+    int maxfd = serverSocket + 1;
+
     // Accept incoming connections and handle clients
-    while (true) {
+    while (!g_shutdownRequested) {
         // Accept connection
-        newSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen);
-        if (newSocket < 0) {
-            cerr << "Failed to accept connection!" << endl;
-            return 1;
+        FD_ZERO(&readSet);
+        FD_SET(serverSocket, &readSet);
+
+        // Set a timeout to check for signals
+        timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 100000; // 100 milliseconds
+
+        // Use select to wait for incoming connections or a signal
+        int ready = select(maxfd, &readSet, NULL, NULL, &timeout);
+        if (ready < 0) {
+            break;
         }
-        thread clientThread(handleClient, newSocket);
-        clientThread.detach();
-        clientThreads.push_back(move(clientThread));
+        if (ready > 0) {
+            newSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen);
+            if (newSocket < 0) {
+                cerr << "Failed to accept connection!" << endl;
+                return 1;
+            }
+            thread clientThread(handleClient, newSocket);
+            clientThread.detach();
+            clientThreads.push_back(move(clientThread));
+        }
+        if (g_shutdownRequested) {
+            break;
+        }
     }
+
+    cout<<"\nClosing server..."<<endl;
     close(serverSocket);
     return 0;
 }

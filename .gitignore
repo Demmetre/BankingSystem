@@ -2,7 +2,7 @@
 *.d
 server
 client
-customer.txt
+*.txt
 # Compiled Object files
 *.slo
 *.lo

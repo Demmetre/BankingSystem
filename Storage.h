@@ -27,6 +27,7 @@ void saveCustomerToFile(const Customer& customer);
 void loadCustomersFromFile();
 bool signup(string username, string password);
 bool login(string username, string password);
+void createUserDataDirectory();
 void getAllCustomers(vector<Customer>& result);
 int transferMoney(string senderUsername, string receiverUsername, double amount);
 double getCurrentBalance(string username);
